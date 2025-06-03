@@ -13,26 +13,41 @@ namespace GraphPathfinder.Views
 {
     public partial class MainWindow : Window
     {
-        private MainViewModel ViewModel => (MainViewModel)DataContext;
-        private Vertex? _draggedVertex = null;
-        private Point _dragOffset;
-        private Vertex? _edgeStartVertex;
-        private Point _edgeDragCurrent;
-        private bool _isDraggingEdge = false;
-        private int _nextVertexId = 1;
-        private readonly SortedSet<int> _freeVertexIds = new SortedSet<int>();
         private const int MaxVertices = 99;
         private const int MaxWeight = 99999;
         private const int MinWeight = -99999;
         private const int MaxWeightDigits = 5;
+        private const double VertexRadius = 22;
+        private const double MinVertexDistance = 50;
+        private const double VertexMargin = 24;
+        private const double SnapRadius = 24;
+        private const double EdgeHitTestDistance = 8;
 
+        private readonly SortedSet<int> _freeVertexIds = new();
+
+        private int _nextVertexId = 1;
+        private int _previewFrameCounter = 0;
+        private int _vertexFrameCounter = 0;
+        private bool _isDraggingEdge = false;
+        private bool _dragDirected = false;
+        private bool _lastDragDirected = false;
+        
+        private Vertex? _draggedVertex = null;
+        private Vertex? _edgeStartVertex = null;
         private Edge? _selectedEdge = null;
+
+        private Point _dragOffset;
+        private Point _edgeDragCurrent;
+        private Point _lastPreviewEdgePos = new(double.NaN, double.NaN);
+
+        private MainViewModel ViewModel => (MainViewModel)DataContext;
 
         public MainWindow()
         {
             InitializeComponent();
             if (DataContext == null)
                 DataContext = new MainViewModel();
+
             GraphCanvas.SizeChanged += (s, e) => RedrawGraph();
             GraphCanvas.MouseLeftButtonDown += GraphCanvas_MouseLeftButtonDown;
             GraphCanvas.MouseMove += GraphCanvas_MouseMove;
@@ -421,12 +436,6 @@ namespace GraphPathfinder.Views
             }
         }
 
-        private const double VertexRadius = 22;
-        private int _previewFrameCounter = 0;
-        private int _vertexFrameCounter = 0;
-        private bool _lastDragDirected = false;
-        private Point _lastPreviewEdgePos = new Point(double.NaN, double.NaN);
-
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if ((e.Key == Key.OemMinus || e.Key == Key.Subtract) && _selectedEdge != null)
@@ -663,8 +672,6 @@ namespace GraphPathfinder.Views
             }
         }
 
-        private bool _dragDirected = false;
-
         private void GraphCanvas_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton == MouseButton.Middle)
@@ -699,7 +706,6 @@ namespace GraphPathfinder.Views
                 }
             }
         }
-
 
         protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
         {

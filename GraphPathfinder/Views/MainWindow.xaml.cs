@@ -439,7 +439,6 @@ namespace GraphPathfinder.Views
                 
                 if (int.TryParse(nextStr, out int result))
                 {
-                    // Limit to -99999 to 99999
                     if (result > 99999) result = 99999;
                     else if (result < -99999) result = -99999;
                     _selectedEdge.Weight = result;
@@ -528,7 +527,6 @@ namespace GraphPathfinder.Views
                 }
             }
             
-            // Handle shift key for edge direction
             if (_isDraggingEdge && (e.Key == Key.LeftShift || e.Key == Key.RightShift))
             {
                 bool newDragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
@@ -671,20 +669,16 @@ namespace GraphPathfinder.Views
         {
             if (e.ChangedButton == MouseButton.Middle)
             {
-                e.Handled = true; // Mark the event as handled
+                e.Handled = true;
                 var pos = e.GetPosition(GraphCanvas);
                 var v = FindVertexAt(pos);
                 if (v != null)
                 {
-                    // Add the ID to the free list
                     _freeVertexIds.Add(v.Id);
-                    
-                    // If this was the highest ID, find the new highest used ID
                     if (v.Id == _nextVertexId - 1)
                     {
-                        // Find the highest used ID that's not in _freeVertexIds
                         _nextVertexId = 1;
-                        if (ViewModel.Vertices.Count > 1) // If there are other vertices
+                        if (ViewModel.Vertices.Count > 1)
                         {
                             _nextVertexId = ViewModel.Vertices
                                 .Where(vertex => vertex != v)

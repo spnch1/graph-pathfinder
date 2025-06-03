@@ -94,12 +94,42 @@ namespace GraphPathfinder.ViewModels
             }
         }
 
-        public List<string> Algorithms { get; } = ["Dijkstra", "Bellman-Ford", "A*"];
+        private bool _hasNegativeWeights = false;
+        public bool HasNegativeWeights
+        {
+            get => _hasNegativeWeights;
+            private set
+            {
+                if (_hasNegativeWeights != value)
+                {
+                    _hasNegativeWeights = value;
+                    OnPropertyChanged(nameof(HasNegativeWeights));
+                    OnPropertyChanged(nameof(AvailableAlgorithms));
+                    
+                    if (value && SelectedAlgorithm != "Bellman-Ford")
+                    {
+                        SelectedAlgorithm = "Bellman-Ford";
+                    }
+                }
+            }
+        }
+        
+        public List<string> AvailableAlgorithms => HasNegativeWeights 
+            ? new List<string> { "Bellman-Ford" } 
+            : new List<string> { "Dijkstra", "Bellman-Ford", "A*" };
+            
         private string _selectedAlgorithm = "Dijkstra";
         public string SelectedAlgorithm
         {
             get => _selectedAlgorithm;
-            set { _selectedAlgorithm = value; OnPropertyChanged(nameof(SelectedAlgorithm)); }
+            set
+            {
+                if (_selectedAlgorithm != value && AvailableAlgorithms.Contains(value))
+                {
+                    _selectedAlgorithm = value;
+                    OnPropertyChanged(nameof(SelectedAlgorithm));
+                }
+            }
         }
 
         public RelayCommand SolveCommand { get; }
@@ -107,6 +137,54 @@ namespace GraphPathfinder.ViewModels
         public MainViewModel()
         {
             SolveCommand = new RelayCommand(_ => Solve());
+            
+            Edges.CollectionChanged += (s, e) =>
+            {
+                if (e.NewItems != null)
+                {
+                    foreach (Edge edge in e.NewItems)
+                    {
+                        edge.PropertyChanged += Edge_PropertyChanged;
+                    }
+                }
+                if (e.OldItems != null)
+                {
+                    foreach (Edge edge in e.OldItems)
+                    {
+                        edge.PropertyChanged -= Edge_PropertyChanged;
+                    }
+                }
+                CheckForNegativeWeights();
+                UpdateGraph();
+            };
+        }
+        
+        private void Edge_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Edge.Weight) || e.PropertyName == nameof(Edge.IsDirected))
+            {
+                CheckForNegativeWeights();
+                UpdateGraph();
+            }
+        }
+        
+        private void CheckForNegativeWeights()
+        {
+            if (!IsWeighted)
+            {
+                HasNegativeWeights = false;
+                return;
+            }
+            
+            HasNegativeWeights = Edges.Any(e => e.Weight < 0);
+        }
+        
+        private void UpdateGraph()
+        {
+            Graph.Clear();
+            Graph.AddVertexRange(Vertices);
+            Graph.AddEdgeRange(Edges);
+            OnPropertyChanged(nameof(Graph));
         }
 
         private AlgorithmResult? _lastAlgorithmResult;
@@ -137,15 +215,12 @@ namespace GraphPathfinder.ViewModels
                     break;
             }
             _lastAlgorithmResult = result;
-            Status = result.Path.Count == 0
-                ? $"No path found from {StartVertex?.Id} to {EndVertex?.Id} using {SelectedAlgorithm}.\n" +
-                  $"Time: {result.ExecutionTimeSeconds:F4}s, " +
-                  $"Vertices: {result.VerticesVisited}, " +
-                  $"Relaxations: {result.EdgeRelaxations}"
-                : $"Path: {string.Join(" -> ", result.Path.Select(v => v.Id))}\n" +
-                  $"Time: {result.ExecutionTimeSeconds:F4}s, " +
-                  $"Vertices: {result.VerticesVisited}, " +
-                  $"Relaxations: {result.EdgeRelaxations}";
+            Status = result.ToString();
+            
+            if (result.HasNegativeCycle && result.NegativeCycle != null && result.NegativeCycle.Count > 0)
+            {
+                OnPropertyChanged(nameof(LastAlgorithmResult));
+            }
         }
 
         public void AddVertex(Vertex v)

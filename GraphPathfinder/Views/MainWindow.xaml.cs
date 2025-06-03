@@ -131,12 +131,6 @@ namespace GraphPathfinder.Views
                                 weightSection = weightSection.TrimEnd(']', ' ');
                                 if (long.TryParse(weightSection, out long w))
                                 {
-                                    if (w < 0)
-                                    {
-                                        warnings.Add($"Edge weight must be a non-negative integer: '{line}'");
-                                        continue;
-                                    }
-
                                     weight = w;
                                     hasExplicitWeight = true;
                                 }
@@ -393,8 +387,33 @@ namespace GraphPathfinder.Views
         private bool _lastDragDirected = false;
         private Point _lastPreviewEdgePos = new Point(double.NaN, double.NaN);
 
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if ((e.Key == Key.OemMinus || e.Key == Key.Subtract) && _selectedEdge != null)
+            {
+                e.Handled = true;
+                string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
+                string nextStr = currentWeightStr.StartsWith("-") ? 
+                    currentWeightStr.TrimStart('-') : 
+                    "-" + currentWeightStr;
+                
+                if (long.TryParse(nextStr, out long result))
+                {
+                    _selectedEdge.Weight = result;
+                    RedrawGraph();
+                }
+            }
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            MainWindow_KeyDown(sender, e);
+        }
+
         private void MainWindow_KeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Handled) return;
+            
             if (_isDraggingEdge && (e.Key == Key.LeftShift || e.Key == Key.RightShift))
             {
                 bool newDragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
@@ -410,18 +429,37 @@ namespace GraphPathfinder.Views
                 if (e.Key >= Key.D0 && e.Key <= Key.D9)
                 {
                     string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
-                    string nextStr = (currentWeightStr == "0" ? "" : currentWeightStr) + (e.Key - Key.D0).ToString();
-                    if (long.TryParse(nextStr, out long result) && result >= 0)
+                    string nextStr = (currentWeightStr == "0" || currentWeightStr == "-0") ? 
+                        (e.Key - Key.D0).ToString() : 
+                        currentWeightStr + (e.Key - Key.D0);
+                    
+                    if (long.TryParse(nextStr, out long result))
                         _selectedEdge.Weight = result;
                     RedrawGraph();
                 }
                 else if (e.Key == Key.Back)
                 {
                     string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
-                    string nextStr = currentWeightStr.Length > 1
-                        ? currentWeightStr.Substring(0, currentWeightStr.Length - 1)
-                        : "0";
-                    if (long.TryParse(nextStr, out long result) && result >= 0)
+                    string nextStr;
+                    
+                    if (currentWeightStr == "0" || currentWeightStr == "-0" || currentWeightStr.Length == 1)
+                    {
+                        nextStr = "0";
+                    }
+                    else if (currentWeightStr == "-1")
+                    {
+                        nextStr = "0";
+                    }
+                    else
+                    {
+                        nextStr = currentWeightStr.Substring(0, currentWeightStr.Length - 1);
+                        if (nextStr == "-")
+                        {
+                            nextStr = "0";
+                        }
+                    }
+                    
+                    if (long.TryParse(nextStr, out long result))
                         _selectedEdge.Weight = result;
                     RedrawGraph();
                 }

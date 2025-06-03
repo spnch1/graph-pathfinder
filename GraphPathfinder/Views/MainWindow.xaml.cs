@@ -14,13 +14,17 @@ namespace GraphPathfinder.Views
     public partial class MainWindow : Window
     {
         private MainViewModel ViewModel => (MainViewModel)DataContext;
-        private Vertex? _draggedVertex;
+        private Vertex? _draggedVertex = null;
         private Point _dragOffset;
         private Vertex? _edgeStartVertex;
         private Point _edgeDragCurrent;
         private bool _isDraggingEdge = false;
         private int _nextVertexId = 1;
-        private readonly Queue<int> _freeVertexIds = new Queue<int>();
+        private readonly SortedSet<int> _freeVertexIds = new SortedSet<int>();
+        private const int MaxVertices = 99;
+        private const int MaxWeight = 99999;
+        private const int MinWeight = -99999;
+        private const int MaxWeightDigits = 5;
 
         private Edge? _selectedEdge = null;
 
@@ -35,7 +39,8 @@ namespace GraphPathfinder.Views
             GraphCanvas.MouseLeftButtonUp += GraphCanvas_MouseLeftButtonUp;
             GraphCanvas.MouseRightButtonDown += GraphCanvas_MouseRightButtonDown;
             GraphCanvas.MouseLeftButtonDown += GraphCanvas_MouseLeftButtonDown_SelectEdge;
-            this.KeyDown += MainWindow_KeyDown;
+            GraphCanvas.PreviewMouseDown += GraphCanvas_PreviewMouseDown;
+            this.KeyDown += Window_KeyDown;
             this.KeyUp += MainWindow_KeyUp;
             this.Loaded += (s, e) => RedrawGraph();
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -123,13 +128,13 @@ namespace GraphPathfinder.Views
                         {
                             hasEdges = true;
                             var edgePart = line.Split('[')[0].Trim();
-                            long? weight = null;
+                            int? weight = null;
                             bool hasExplicitWeight = false;
                             if (line.Contains("[w="))
                             {
                                 var weightSection = line.Substring(line.IndexOf("[w=") + 3);
                                 weightSection = weightSection.TrimEnd(']', ' ');
-                                if (long.TryParse(weightSection, out long w))
+                                if (int.TryParse(weightSection, out int w))
                                 {
                                     weight = w;
                                     hasExplicitWeight = true;
@@ -327,13 +332,39 @@ namespace GraphPathfinder.Views
 
         private void GraphCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (_selectedEdge != null)
+            {
+                _selectedEdge = null;
+                RedrawGraph();
+            }
+            
             var pos = e.GetPosition(GraphCanvas);
             var v = FindVertexAt(pos);
             if (e.ChangedButton == MouseButton.Left)
             {
                 if (e.ClickCount == 2)
                 {
-                    int id = _freeVertexIds.Count > 0 ? _freeVertexIds.Dequeue() : _nextVertexId++;
+                    if (ViewModel.Vertices.Count >= MaxVertices)
+                    {
+                        MessageBox.Show($"Maximum number of vertices ({MaxVertices}) reached.", "Limit Reached", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    
+                    int id;
+                    if (_freeVertexIds.Count > 0)
+                    {
+                        id = _freeVertexIds.Min;
+                        _freeVertexIds.Remove(id);
+                        
+                        if (id >= _nextVertexId)
+                        {
+                            _nextVertexId = id + 1;
+                        }
+                    }
+                    else
+                    {
+                        id = _nextVertexId++;
+                    }
                     double margin = 24;
                     double x = Math.Max(margin, Math.Min(GraphCanvas.ActualWidth - margin, pos.X));
                     double y = Math.Max(margin, Math.Min(GraphCanvas.ActualHeight - margin, pos.Y));
@@ -361,6 +392,15 @@ namespace GraphPathfinder.Views
 
         private void GraphCanvas_MouseLeftButtonDown_SelectEdge(object sender, MouseButtonEventArgs e)
         {
+            if (sender is Canvas canvas && e.OriginalSource == canvas)
+            {
+                if (_selectedEdge != null)
+                {
+                    _selectedEdge = null;
+                    RedrawGraph();
+                }
+                return;
+            }
             if (e.ChangedButton == MouseButton.Left)
             {
                 var pos = e.GetPosition(GraphCanvas);
@@ -397,8 +437,11 @@ namespace GraphPathfinder.Views
                     currentWeightStr.TrimStart('-') : 
                     "-" + currentWeightStr;
                 
-                if (long.TryParse(nextStr, out long result))
+                if (int.TryParse(nextStr, out int result))
                 {
+                    // Limit to -99999 to 99999
+                    if (result > 99999) result = 99999;
+                    else if (result < -99999) result = -99999;
                     _selectedEdge.Weight = result;
                     RedrawGraph();
                 }
@@ -407,38 +450,40 @@ namespace GraphPathfinder.Views
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            MainWindow_KeyDown(sender, e);
-        }
-
-        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
-        {
             if (e.Handled) return;
             
-            if (_isDraggingEdge && (e.Key == Key.LeftShift || e.Key == Key.RightShift))
-            {
-                bool newDragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-                if (newDragDirected != _dragDirected)
-                {
-                    _dragDirected = newDragDirected;
-                    RedrawGraph();
-                }
-            }
-
             if (_selectedEdge != null)
             {
                 if (e.Key >= Key.D0 && e.Key <= Key.D9)
                 {
+                    e.Handled = true;
                     string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
-                    string nextStr = (currentWeightStr == "0" || currentWeightStr == "-0") ? 
-                        (e.Key - Key.D0).ToString() : 
-                        currentWeightStr + (e.Key - Key.D0);
+                    string nextStr;
                     
-                    if (long.TryParse(nextStr, out long result))
+                    if (currentWeightStr == "0" || currentWeightStr == "-0")
+                    {
+                        nextStr = (e.Key - Key.D0).ToString();
+                    }
+                    else if (currentWeightStr.Replace("-", "").Length >= MaxWeightDigits)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        nextStr = currentWeightStr + (e.Key - Key.D0);
+                    }
+                    
+                    if (int.TryParse(nextStr, out int result))
+                    {
+                        if (result > MaxWeight) result = MaxWeight;
+                        else if (result < MinWeight) result = MinWeight;
                         _selectedEdge.Weight = result;
-                    RedrawGraph();
+                        RedrawGraph();
+                    }
                 }
                 else if (e.Key == Key.Back)
                 {
+                    e.Handled = true;
                     string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
                     string nextStr;
                     
@@ -452,15 +497,44 @@ namespace GraphPathfinder.Views
                     }
                     else
                     {
-                        nextStr = currentWeightStr.Substring(0, currentWeightStr.Length - 1);
+                        nextStr = currentWeightStr[..^1];
                         if (nextStr == "-")
                         {
                             nextStr = "0";
                         }
                     }
                     
-                    if (long.TryParse(nextStr, out long result))
+                    if (int.TryParse(nextStr, out int result))
+                    {
                         _selectedEdge.Weight = result;
+                        RedrawGraph();
+                    }
+                }
+                else if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
+                {
+                    e.Handled = true;
+                    string currentWeightStr = _selectedEdge.Weight?.ToString() ?? "0";
+                    string nextStr = currentWeightStr.StartsWith("-") ? 
+                        currentWeightStr.TrimStart('-') : 
+                        "-" + currentWeightStr;
+                    
+                    if (int.TryParse(nextStr, out int result))
+                    {
+                        if (result > MaxWeight) result = MaxWeight;
+                        else if (result < MinWeight) result = MinWeight;
+                        _selectedEdge.Weight = result;
+                        RedrawGraph();
+                    }
+                }
+            }
+            
+            // Handle shift key for edge direction
+            if (_isDraggingEdge && (e.Key == Key.LeftShift || e.Key == Key.RightShift))
+            {
+                bool newDragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                if (newDragDirected != _dragDirected)
+                {
+                    _dragDirected = newDragDirected;
                     RedrawGraph();
                 }
             }
@@ -593,6 +667,46 @@ namespace GraphPathfinder.Views
 
         private bool _dragDirected = false;
 
+        private void GraphCanvas_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Middle)
+            {
+                e.Handled = true; // Mark the event as handled
+                var pos = e.GetPosition(GraphCanvas);
+                var v = FindVertexAt(pos);
+                if (v != null)
+                {
+                    // Add the ID to the free list
+                    _freeVertexIds.Add(v.Id);
+                    
+                    // If this was the highest ID, find the new highest used ID
+                    if (v.Id == _nextVertexId - 1)
+                    {
+                        // Find the highest used ID that's not in _freeVertexIds
+                        _nextVertexId = 1;
+                        if (ViewModel.Vertices.Count > 1) // If there are other vertices
+                        {
+                            _nextVertexId = ViewModel.Vertices
+                                .Where(vertex => vertex != v)
+                                .Max(vertex => vertex.Id) + 1;
+                        }
+                    }
+                    
+                    ViewModel.RemoveVertex(v);
+                    RedrawGraph();
+                    return;
+                }
+
+                var edge = FindEdgeAt(pos);
+                if (edge != null)
+                {
+                    ViewModel.RemoveEdge(edge);
+                    RedrawGraph();
+                }
+            }
+        }
+
+
         protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
         {
             base.OnPreviewMouseDown(e);
@@ -607,25 +721,6 @@ namespace GraphPathfinder.Views
                     _isDraggingEdge = true;
                     _dragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
                     GraphCanvas.CaptureMouse();
-                }
-            }
-            else if (e.ChangedButton == MouseButton.Middle)
-            {
-                var pos = e.GetPosition(GraphCanvas);
-                var v = FindVertexAt(pos);
-                if (v != null)
-                {
-                    _freeVertexIds.Enqueue(v.Id);
-                    ViewModel.RemoveVertex(v);
-                    RedrawGraph();
-                    return;
-                }
-
-                var edge = FindEdgeAt(pos);
-                if (edge != null)
-                {
-                    ViewModel.RemoveEdge(edge);
-                    RedrawGraph();
                 }
             }
         }

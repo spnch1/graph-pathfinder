@@ -18,12 +18,22 @@ namespace GraphPathfinder.Models
             }
         }
 
+        private const long MaxWeight = 99999;
+        private const long MinWeight = -99999;
+        
         private long? _weight = null;
         public long? Weight
         {
             get => _weight;
             set
             {
+                if (value != null)
+                {
+                    // Enforce weight limits
+                    if (value > MaxWeight) value = MaxWeight;
+                    else if (value < MinWeight) value = MinWeight;
+                }
+                
                 if (_weight != value)
                 {
                     _weight = value;

@@ -10,18 +10,31 @@ namespace GraphPathfinder.Algorithms
         public static AlgorithmResult FindPath(Vertex start, Vertex end, IEnumerable<Vertex> vertices, IEnumerable<Edge> edges, Func<Vertex, Vertex, double> heuristic, bool isDirectedGraph = false)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var openSet = new HashSet<Vertex> { start };
+
+            var openSet = new PriorityQueue<Vertex, double>();
+            openSet.Enqueue(start, heuristic(start, end));
+
             var cameFrom = new Dictionary<Vertex, Vertex?>();
             var gScore = vertices.ToDictionary(v => v, v => double.PositiveInfinity);
             gScore[start] = 0;
+
             var fScore = vertices.ToDictionary(v => v, v => double.PositiveInfinity);
             fScore[start] = heuristic(start, end);
+
+            var closedSet = new HashSet<Vertex>();
+
             int verticesVisited = 0;
             int edgeRelaxations = 0;
+
             while (openSet.Count > 0)
             {
-                var current = openSet.OrderBy(v => fScore[v]).First();
+                var current = openSet.Dequeue();
+
+                if (!closedSet.Add(current))
+                    continue;
+
                 verticesVisited++;
+
                 if (current == end)
                 {
                     var path = new List<Vertex>();
@@ -35,6 +48,7 @@ namespace GraphPathfinder.Algorithms
                     }
                     if (path.Count > 0 && path[0] != start)
                         path.Insert(0, start);
+
                     stopwatch.Stop();
                     return new AlgorithmResult
                     {
@@ -44,53 +58,29 @@ namespace GraphPathfinder.Algorithms
                         EdgeRelaxations = edgeRelaxations
                     };
                 }
-                openSet.Remove(current);
-                foreach (var e in edges)
+
+                var neighbors = edges.Where(e =>
+                    e.IsDirected
+                        ? e.Source == current && !closedSet.Contains(e.Target)
+                        : (e.Source == current && !closedSet.Contains(e.Target)) || (e.Target == current && !closedSet.Contains(e.Source))
+                );
+
+                foreach (var e in neighbors)
                 {
-                    if (e.IsDirected)
+                    Vertex neighbor = e.Source == current ? e.Target : e.Source;
+                    double tentative_gScore = gScore[current] + (e.Weight ?? 1);
+
+                    if (tentative_gScore < gScore[neighbor])
                     {
-                        if (e.Source == current)
-                        {
-                            var tentative_gScore = gScore[current] + (e.Weight ?? 1);
-                            if (tentative_gScore < gScore[e.Target])
-                            {
-                                cameFrom[e.Target] = current;
-                                gScore[e.Target] = tentative_gScore;
-                                fScore[e.Target] = gScore[e.Target] + heuristic(e.Target, end);
-                                openSet.Add(e.Target);
-                                edgeRelaxations++;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (e.Source == current)
-                        {
-                            var tentative_gScore = gScore[current] + (e.Weight ?? 1);
-                            if (tentative_gScore < gScore[e.Target])
-                            {
-                                cameFrom[e.Target] = current;
-                                gScore[e.Target] = tentative_gScore;
-                                fScore[e.Target] = gScore[e.Target] + heuristic(e.Target, end);
-                                openSet.Add(e.Target);
-                                edgeRelaxations++;
-                            }
-                        }
-                        if (e.Target == current)
-                        {
-                            var tentative_gScore = gScore[current] + (e.Weight ?? 1);
-                            if (tentative_gScore < gScore[e.Source])
-                            {
-                                cameFrom[e.Source] = current;
-                                gScore[e.Source] = tentative_gScore;
-                                fScore[e.Source] = gScore[e.Source] + heuristic(e.Source, end);
-                                openSet.Add(e.Source);
-                                edgeRelaxations++;
-                            }
-                        }
+                        cameFrom[neighbor] = current;
+                        gScore[neighbor] = tentative_gScore;
+                        fScore[neighbor] = tentative_gScore + heuristic(neighbor, end);
+                        openSet.Enqueue(neighbor, fScore[neighbor]);
+                        edgeRelaxations++;
                     }
                 }
             }
+
             stopwatch.Stop();
             return new AlgorithmResult
             {

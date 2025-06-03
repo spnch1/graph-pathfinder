@@ -29,7 +29,6 @@ namespace GraphPathfinder.Models
             {
                 if (value != null)
                 {
-                    // Enforce weight limits
                     if (value > MaxWeight) value = MaxWeight;
                     else if (value < MinWeight) value = MinWeight;
                 }

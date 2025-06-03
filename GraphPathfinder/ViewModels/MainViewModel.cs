@@ -1,13 +1,16 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using QuikGraph;
+using System.Linq;
 using GraphPathfinder.Models;
 using GraphPathfinder.Algorithms;
+using GraphPathfinder.Services;
 
 namespace GraphPathfinder.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
+        private readonly GraphManager _graphManager = new();
+
         private bool _isDirected;
         public bool IsDirected
         {
@@ -26,6 +29,7 @@ namespace GraphPathfinder.ViewModels
                 }
             }
         }
+
         private bool _isWeighted;
         public bool IsWeighted
         {
@@ -43,8 +47,6 @@ namespace GraphPathfinder.ViewModels
                 }
             }
         }
-
-        public BidirectionalGraph<Vertex, Edge> Graph { get; } = new();
 
         public ObservableCollection<Vertex> Vertices { get; } = new();
         public ObservableCollection<Edge> Edges { get; } = new();
@@ -105,7 +107,7 @@ namespace GraphPathfinder.ViewModels
                     _hasNegativeWeights = value;
                     OnPropertyChanged(nameof(HasNegativeWeights));
                     OnPropertyChanged(nameof(AvailableAlgorithms));
-                    
+
                     if (value && SelectedAlgorithm != "Bellman-Ford")
                     {
                         SelectedAlgorithm = "Bellman-Ford";
@@ -113,11 +115,11 @@ namespace GraphPathfinder.ViewModels
                 }
             }
         }
-        
-        public List<string> AvailableAlgorithms => HasNegativeWeights 
-            ? new List<string> { "Bellman-Ford" } 
-            : new List<string> { "Dijkstra", "Bellman-Ford", "A*" };
-            
+
+        public System.Collections.Generic.List<string> AvailableAlgorithms => HasNegativeWeights
+            ? new System.Collections.Generic.List<string> { "Bellman-Ford" }
+            : new System.Collections.Generic.List<string> { "Dijkstra", "Bellman-Ford", "A*" };
+
         private string _selectedAlgorithm = "Dijkstra";
         public string SelectedAlgorithm
         {
@@ -132,42 +134,40 @@ namespace GraphPathfinder.ViewModels
             }
         }
 
+        private AlgorithmResult? _lastAlgorithmResult;
+        public AlgorithmResult? LastAlgorithmResult => _lastAlgorithmResult;
+
         public RelayCommand SolveCommand { get; }
 
         public MainViewModel()
         {
             SolveCommand = new RelayCommand(_ => Solve());
-            
-            Edges.CollectionChanged += (s, e) =>
-            {
-                if (e.NewItems != null)
-                {
-                    foreach (Edge edge in e.NewItems)
-                    {
-                        edge.PropertyChanged += Edge_PropertyChanged;
-                    }
-                }
-                if (e.OldItems != null)
-                {
-                    foreach (Edge edge in e.OldItems)
-                    {
-                        edge.PropertyChanged -= Edge_PropertyChanged;
-                    }
-                }
-                CheckForNegativeWeights();
-                UpdateGraph();
-            };
+
+            _graphManager.GraphChanged += OnGraphChanged;
+
+            SyncCollectionsWithGraph();
         }
-        
-        private void Edge_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+
+        private void OnGraphChanged()
         {
-            if (e.PropertyName == nameof(Edge.Weight) || e.PropertyName == nameof(Edge.IsDirected))
-            {
-                CheckForNegativeWeights();
-                UpdateGraph();
-            }
+            SyncCollectionsWithGraph();
+            CheckForNegativeWeights();
         }
-        
+
+        private void SyncCollectionsWithGraph()
+        {
+            Vertices.Clear();
+            foreach (var v in _graphManager.Vertices)
+                Vertices.Add(v);
+
+            Edges.Clear();
+            foreach (var e in _graphManager.Edges)
+                Edges.Add(e);
+
+            OnPropertyChanged(nameof(Vertices));
+            OnPropertyChanged(nameof(Edges));
+        }
+
         private void CheckForNegativeWeights()
         {
             if (!IsWeighted)
@@ -175,94 +175,99 @@ namespace GraphPathfinder.ViewModels
                 HasNegativeWeights = false;
                 return;
             }
-            
+
             HasNegativeWeights = Edges.Any(e => e.Weight < 0);
         }
-        
-        private void UpdateGraph()
-        {
-            Graph.Clear();
-            Graph.AddVertexRange(Vertices);
-            Graph.AddEdgeRange(Edges);
-            OnPropertyChanged(nameof(Graph));
-        }
-
-        private AlgorithmResult? _lastAlgorithmResult;
-        public AlgorithmResult? LastAlgorithmResult => _lastAlgorithmResult;
 
         private void Solve()
+        {
+            if (!ValidateStartAndEndVertices())
+                return;
+
+            switch (SelectedAlgorithm)
+            {
+                case "Dijkstra":
+                    RunDijkstra();
+                    break;
+                case "Bellman-Ford":
+                    RunBellmanFord();
+                    break;
+                case "A*":
+                    RunAStar();
+                    break;
+                default:
+                    Status = "Selected algorithm is not supported.";
+                    _lastAlgorithmResult = null;
+                    break;
+            }
+
+            if (_lastAlgorithmResult != null)
+                Status = _lastAlgorithmResult.ToString();
+        }
+
+        private bool ValidateStartAndEndVertices()
         {
             if (StartVertex == null || EndVertex == null)
             {
                 Status = "Please select both start and end vertices.";
                 _lastAlgorithmResult = null;
-                return;
+                return false;
             }
-            AlgorithmResult result = new AlgorithmResult();
-            switch (SelectedAlgorithm)
-            {
-                case "Dijkstra":
-                    result = DijkstraAlgorithm.FindPath(StartVertex, EndVertex, Vertices, Edges, IsDirected);
-                    break;
-                case "Bellman-Ford":
-                    result = BellmanFordAlgorithm.FindPath(StartVertex, EndVertex, Vertices, Edges, IsDirected);
-                    break;
-                case "A*":
-                    result = AStarAlgorithm.FindPath(
-                        StartVertex, EndVertex, Vertices, Edges,
-                        (a, b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2)),
-                        IsDirected);
-                    break;
-            }
-            _lastAlgorithmResult = result;
-            Status = result.ToString();
-            
-            if (result.HasNegativeCycle && result.NegativeCycle != null && result.NegativeCycle.Count > 0)
-            {
-                OnPropertyChanged(nameof(LastAlgorithmResult));
-            }
+            return true;
+        }
+
+        private void RunDijkstra()
+        {
+            _lastAlgorithmResult = DijkstraAlgorithm.FindPath(StartVertex!, EndVertex!, Vertices, Edges, IsDirected);
+        }
+
+        private void RunBellmanFord()
+        {
+            _lastAlgorithmResult = BellmanFordAlgorithm.FindPath(StartVertex!, EndVertex!, Vertices, Edges, IsDirected);
+        }
+
+        private void RunAStar()
+        {
+            _lastAlgorithmResult = AStarAlgorithm.FindPath(
+                StartVertex!, EndVertex!, Vertices, Edges,
+                (a, b) => System.Math.Sqrt(System.Math.Pow(a.X - b.X, 2) + System.Math.Pow(a.Y - b.Y, 2)),
+                IsDirected);
         }
 
         public void AddVertex(Vertex v)
         {
-            Graph.AddVertex(v);
-            Vertices.Add(v);
-            Status = $"Vertex {v.Id} added.";
+            if (_graphManager.AddVertex(v))
+                Status = $"Vertex {v.Id} added.";
         }
 
         public void RemoveVertex(Vertex v)
         {
-            Graph.RemoveVertex(v);
-            Vertices.Remove(v);
-            for (int i = Edges.Count - 1; i >= 0; i--)
-                if (Edges[i].Source == v || Edges[i].Target == v)
-                    Edges.RemoveAt(i);
-            Status = $"Vertex {v.Id} removed.";
+            if (_graphManager.RemoveVertex(v))
+                Status = $"Vertex {v.Id} removed.";
         }
 
         public void AddEdge(Vertex from, Vertex to, bool isDirected = false, long? weight = null)
         {
-            long? finalWeight = IsWeighted ? 1 : null;
-            var toRemove = Edges.Where(e => (e.Source == from && e.Target == to) || (e.Source == to && e.Target == from)).ToList();
-            foreach (var oldEdge in toRemove)
-            {
-                Graph.RemoveEdge(oldEdge);
-                Edges.Remove(oldEdge);
-            }
-            var edge = new Edge(from, to, isDirected, finalWeight);
-            Graph.AddEdge(edge);
-            Edges.Add(edge);
-            Status = $"Edge {from.Id} → {to.Id} added.";
+            long? finalWeight = weight ?? (IsWeighted ? 1 : null);
+
+            if (_graphManager.AddEdge(from, to, isDirected, finalWeight))
+                Status = $"Edge {from.Id} → {to.Id} added.";
         }
 
         public void RemoveEdge(Edge e)
         {
-            Graph.RemoveEdge(e);
-            Edges.Remove(e);
-            Status = $"Edge {e.Source.Id} → {e.Target.Id} removed.";
+            if (_graphManager.RemoveEdge(e))
+                Status = $"Edge {e.Source.Id} → {e.Target.Id} removed.";
+        }
+
+        public void ClearGraph()
+        {
+            _graphManager.Clear();
+            Status = "Graph cleared.";
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        protected void OnPropertyChanged(string propertyName) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -72,9 +72,7 @@ namespace GraphPathfinder.Views
                 var warnings = new List<string>();
                 try
                 {
-                    ViewModel.Vertices.Clear();
-                    ViewModel.Edges.Clear();
-                    ViewModel.Graph.Clear();
+                    ViewModel.ClearGraph();
                     _freeVertexIds.Clear();
                     _nextVertexId = 1;
                     _selectedEdge = null;
@@ -125,8 +123,7 @@ namespace GraphPathfinder.Views
                                         out double y))
                                 {
                                     var v = new Vertex { Id = id, X = x, Y = y };
-                                    ViewModel.Vertices.Add(v);
-                                    ViewModel.Graph.AddVertex(v);
+                                    ViewModel.AddVertex(v);
                                     vertexDict[id] = v;
                                 }
                                 else
@@ -193,9 +190,7 @@ namespace GraphPathfinder.Views
                                     continue;
                                 }
 
-                                var edge = new Edge(vertexDict[fromId], vertexDict[toId], isDirected, weight);
-                                ViewModel.Edges.Add(edge);
-                                ViewModel.Graph.AddEdge(edge);
+                                ViewModel.AddEdge(vertexDict[fromId], vertexDict[toId], isDirected, weight);
                             }
                             else
                             {
@@ -853,9 +848,7 @@ namespace GraphPathfinder.Views
 
         private void ClearGraphButton_Click(object sender, RoutedEventArgs e)
         {
-            ViewModel.Vertices.Clear();
-            ViewModel.Edges.Clear();
-            ViewModel.Graph.Clear();
+            ViewModel.ClearGraph();
             _freeVertexIds.Clear();
             _nextVertexId = 1;
             _selectedEdge = null;

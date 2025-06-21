@@ -40,8 +40,6 @@ namespace GraphPathfinder.Models
                 }
             }
         }
-        
-        public bool HasNegativeWeight => Weight < 0;
 
         public Edge(Vertex source, Vertex target, bool isDirected = false, long? weight = null)
             : base(source, target)

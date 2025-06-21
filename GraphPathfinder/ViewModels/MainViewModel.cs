@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using GraphPathfinder.Models;
 using GraphPathfinder.Algorithms;
 using GraphPathfinder.Services;
@@ -48,8 +47,8 @@ namespace GraphPathfinder.ViewModels
             }
         }
 
-        public ObservableCollection<Vertex> Vertices { get; } = new();
-        public ObservableCollection<Edge> Edges { get; } = new();
+        public ObservableCollection<Vertex> Vertices { get; } = [];
+        public ObservableCollection<Edge> Edges { get; } = [];
 
         private string _status = string.Empty;
         public string Status
@@ -116,9 +115,8 @@ namespace GraphPathfinder.ViewModels
             }
         }
 
-        public System.Collections.Generic.List<string> AvailableAlgorithms => HasNegativeWeights
-            ? new System.Collections.Generic.List<string> { "Bellman-Ford" }
-            : new System.Collections.Generic.List<string> { "Dijkstra", "Bellman-Ford", "A*" };
+        public List<string> AvailableAlgorithms => HasNegativeWeights
+            ? ["Bellman-Ford"] : ["Dijkstra", "Bellman-Ford", "A*"];
 
         private string _selectedAlgorithm = "Dijkstra";
         public string SelectedAlgorithm
@@ -230,7 +228,7 @@ namespace GraphPathfinder.ViewModels
         {
             _lastAlgorithmResult = AStarAlgorithm.FindPath(
                 StartVertex!, EndVertex!, Vertices, Edges,
-                (a, b) => System.Math.Sqrt(System.Math.Pow(a.X - b.X, 2) + System.Math.Pow(a.Y - b.Y, 2)),
+                (a, b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2)),
                 IsDirected);
         }
 

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +5,7 @@ using System.Windows.Media;
 using GraphPathfinder.Models;
 using GraphPathfinder.ViewModels;
 using System.Globalization;
+using System.Windows.Shapes;
 
 namespace GraphPathfinder.Views
 {
@@ -18,10 +16,6 @@ namespace GraphPathfinder.Views
         private const int MinWeight = -99999;
         private const int MaxWeightDigits = 5;
         private const double VertexRadius = 22;
-        private const double MinVertexDistance = 50;
-        private const double VertexMargin = 24;
-        private const double SnapRadius = 24;
-        private const double EdgeHitTestDistance = 8;
 
         private readonly SortedSet<int> _freeVertexIds = new();
 
@@ -38,15 +32,13 @@ namespace GraphPathfinder.Views
 
         private Point _dragOffset;
         private Point _edgeDragCurrent;
-        private Point _lastPreviewEdgePos = new(double.NaN, double.NaN);
 
         private MainViewModel ViewModel => (MainViewModel)DataContext;
 
         public MainWindow()
         {
             InitializeComponent();
-            if (DataContext == null)
-                DataContext = new MainViewModel();
+            DataContext ??= new MainViewModel();
 
             GraphCanvas.SizeChanged += (s, e) => RedrawGraph();
             GraphCanvas.MouseLeftButtonDown += GraphCanvas_MouseLeftButtonDown;
@@ -55,9 +47,9 @@ namespace GraphPathfinder.Views
             GraphCanvas.MouseRightButtonDown += GraphCanvas_MouseRightButtonDown;
             GraphCanvas.MouseLeftButtonDown += GraphCanvas_MouseLeftButtonDown_SelectEdge;
             GraphCanvas.PreviewMouseDown += GraphCanvas_PreviewMouseDown;
-            this.KeyDown += Window_KeyDown;
-            this.KeyUp += MainWindow_KeyUp;
-            this.Loaded += (s, e) => RedrawGraph();
+            KeyDown += Window_KeyDown;
+            KeyUp += MainWindow_KeyUp;
+            Loaded += (s, e) => RedrawGraph();
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
 
             ShowTextInputButton.Click += (s, e) =>
@@ -81,7 +73,7 @@ namespace GraphPathfinder.Views
                     var seenVertexIds = new HashSet<int>();
                     var seenEdges = new HashSet<string>();
                     bool inVertices = false, inEdges = false, hasVertices = false, hasEdges = false;
-                    var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
                     bool anyExplicitWeight = lines.Any(l => l.Contains("[w="));
                     foreach (var rawLine in lines)
                     {
@@ -144,7 +136,7 @@ namespace GraphPathfinder.Views
                             bool hasExplicitWeight = false;
                             if (line.Contains("[w="))
                             {
-                                var weightSection = line.Substring(line.IndexOf("[w=") + 3);
+                                var weightSection = line.Substring(line.IndexOf("[w=", StringComparison.Ordinal) + 3);
                                 weightSection = weightSection.TrimEnd(']', ' ');
                                 if (int.TryParse(weightSection, out int w))
                                 {
@@ -169,11 +161,7 @@ namespace GraphPathfinder.Views
                             }
 
                             bool isDirected = edgePart.Contains("->");
-                            string[] edgeVertices;
-                            if (isDirected)
-                                edgeVertices = edgePart.Split(new[] { "->" }, StringSplitOptions.None);
-                            else
-                                edgeVertices = edgePart.Split(new[] { "--" }, StringSplitOptions.None);
+                            string[] edgeVertices = isDirected ? edgePart.Split(["->"], StringSplitOptions.None) : edgePart.Split(["--"], StringSplitOptions.None);
                             if (edgeVertices.Length == 2 && int.TryParse(edgeVertices[0].Trim(), out int fromId) &&
                                 int.TryParse(edgeVertices[1].Trim(), out int toId))
                             {
@@ -184,13 +172,13 @@ namespace GraphPathfinder.Views
                                     continue;
                                 }
 
-                                if (!vertexDict.ContainsKey(fromId) || !vertexDict.ContainsKey(toId))
+                                if (!vertexDict.ContainsKey(fromId) || !vertexDict.TryGetValue(toId, out var value))
                                 {
                                     warnings.Add($"Edge refers to missing vertex: '{line}'");
                                     continue;
                                 }
 
-                                ViewModel.AddEdge(vertexDict[fromId], vertexDict[toId], isDirected, weight);
+                                ViewModel.AddEdge(vertexDict[fromId], value, isDirected, weight);
                             }
                             else
                             {
@@ -252,7 +240,7 @@ namespace GraphPathfinder.Views
                 if (_edgeStartVertex == null)
                     return;
                 {
-                    var tempLine = new System.Windows.Shapes.Line
+                    var tempLine = new Line
                     {
                         X1 = _edgeStartVertex.X,
                         Y1 = _edgeStartVertex.Y,
@@ -260,7 +248,7 @@ namespace GraphPathfinder.Views
                         Y2 = endY,
                         Stroke = Brushes.Gray,
                         StrokeThickness = 2,
-                        StrokeDashArray = new DoubleCollection { 4, 2 }
+                        StrokeDashArray = [4, 2]
                     };
                     GraphCanvas.Children.Add(tempLine);
                     if (_dragDirected)
@@ -289,19 +277,18 @@ namespace GraphPathfinder.Views
                     endY = edge.Target.Y - uy * (arrowLen + vertexRadius);
                 }
 
-                var line = new System.Windows.Shapes.Line
+                var line = new Line
                 {
                     X1 = edge.Source.X,
                     Y1 = edge.Source.Y,
                     X2 = endX,
                     Y2 = endY,
-                    Stroke = selected ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Black,
+                    Stroke = selected ? Brushes.Red : Brushes.Black,
                     StrokeThickness = 2
                 };
                 GraphCanvas.Children.Add(line);
                 if (ViewModel.IsDirected && edge.IsDirected)
                 {
-                    DrawArrowhead(edge.Source.X, edge.Source.Y, edge.Target.X, edge.Target.Y, selected, false);
                     DrawArrowhead(edge.Source.X, edge.Source.Y, edge.Target.X, edge.Target.Y, selected);
                 }
 
@@ -313,12 +300,12 @@ namespace GraphPathfinder.Views
 
             foreach (var vertex in ViewModel.Vertices)
             {
-                var ellipse = new System.Windows.Shapes.Ellipse
+                var ellipse = new Ellipse
                 {
                     Width = vertexRadius * 2,
                     Height = vertexRadius * 2,
-                    Fill = System.Windows.Media.Brushes.White,
-                    Stroke = System.Windows.Media.Brushes.Black,
+                    Fill = Brushes.White,
+                    Stroke = Brushes.Black,
                     StrokeThickness = 2,
                 };
                 Canvas.SetLeft(ellipse, vertex.X - vertexRadius);
@@ -327,7 +314,7 @@ namespace GraphPathfinder.Views
                 var label = new TextBlock
                 {
                     Text = vertex.Id.ToString(),
-                    Foreground = System.Windows.Media.Brushes.Black,
+                    Foreground = Brushes.Black,
                     FontWeight = FontWeights.Bold,
                     FontSize = 14,
                     TextAlignment = TextAlignment.Center
@@ -402,7 +389,7 @@ namespace GraphPathfinder.Views
 
         private void GraphCanvas_MouseLeftButtonDown_SelectEdge(object sender, MouseButtonEventArgs e)
         {
-            if (sender is Canvas canvas && e.OriginalSource == canvas)
+            if (sender is Canvas canvas && Equals(e.OriginalSource, canvas))
             {
                 if (_selectedEdge != null)
                 {
@@ -600,7 +587,6 @@ namespace GraphPathfinder.Views
             }
             else if (_isDraggingEdge && e.RightButton == MouseButtonState.Pressed)
             {
-                bool prevDragDirected = _dragDirected;
                 _dragDirected = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
                 double snapRadius = 24;
                 Vertex? snapVertex = null;
@@ -651,7 +637,7 @@ namespace GraphPathfinder.Views
             }
             else
             {
-                _lastPreviewEdgePos = new Point(double.NaN, double.NaN);
+                new Point(double.NaN, double.NaN);
                 _previewFrameCounter = 0;
                 _vertexFrameCounter = 0;
                 _lastDragDirected = false;
@@ -767,7 +753,7 @@ namespace GraphPathfinder.Views
             figure.Segments.Add(new LineSegment(new Point(leftX, leftY), true));
             figure.Segments.Add(new LineSegment(new Point(rightX, rightY), true));
             geometry.Figures.Add(figure);
-            var path = new System.Windows.Shapes.Path
+            var path = new Path
             {
                 Data = geometry,
                 Fill = isPreview ? Brushes.Gray : (selected ? Brushes.Red : Brushes.Black),

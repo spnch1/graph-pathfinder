@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using GraphPathfinder.Models;
 using QuikGraph;
 
@@ -8,17 +5,12 @@ namespace GraphPathfinder.Services
 {
     public class GraphManager
     {
-        private readonly BidirectionalGraph<Vertex, Edge> _graph;
+        private readonly BidirectionalGraph<Vertex, Edge> _graph = new();
 
         public IReadOnlyCollection<Vertex> Vertices => _graph.Vertices.ToList();
         public IReadOnlyCollection<Edge> Edges => _graph.Edges.ToList();
 
         public event Action? GraphChanged;
-
-        public GraphManager()
-        {
-            _graph = new BidirectionalGraph<Vertex, Edge>();
-        }
 
         public bool AddVertex(Vertex v)
         {

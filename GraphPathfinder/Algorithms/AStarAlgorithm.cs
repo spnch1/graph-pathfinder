@@ -68,13 +68,13 @@ namespace GraphPathfinder.Algorithms
                 foreach (var e in neighbors)
                 {
                     Vertex neighbor = e.Source == current ? e.Target : e.Source;
-                    double tentative_gScore = gScore[current] + (e.Weight ?? 1);
+                    double tentativeGScore = gScore[current] + (e.Weight ?? 1);
 
-                    if (tentative_gScore < gScore[neighbor])
+                    if (tentativeGScore < gScore[neighbor])
                     {
                         cameFrom[neighbor] = current;
-                        gScore[neighbor] = tentative_gScore;
-                        fScore[neighbor] = tentative_gScore + heuristic(neighbor, end);
+                        gScore[neighbor] = tentativeGScore;
+                        fScore[neighbor] = tentativeGScore + heuristic(neighbor, end);
                         openSet.Enqueue(neighbor, fScore[neighbor]);
                         edgeRelaxations++;
                     }

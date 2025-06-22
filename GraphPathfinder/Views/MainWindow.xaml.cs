@@ -101,6 +101,13 @@ namespace GraphPathfinder.Views
                             var parts = line.Split(':');
                             if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out int id))
                             {
+                                int expectedId = seenVertexIds.Count + 1;
+                                if (id != expectedId)
+                                {
+                                    warnings.Add($"Vertex IDs must be sequential starting from 1. Expected ID: {expectedId}, got: {id}");
+                                    continue;
+                                }
+
                                 if (!seenVertexIds.Add(id))
                                 {
                                     warnings.Add($"Duplicate vertex ID: {id}");
@@ -193,6 +200,12 @@ namespace GraphPathfinder.Views
                         warnings.Add("No edges section or no edges defined.");
                     ViewModel.IsDirected = text.Contains("->");
                     ViewModel.IsWeighted = text.Contains("[w=");
+                    
+                    if (ViewModel.Vertices.Count > 0)
+                    {
+                        _nextVertexId = ViewModel.Vertices.Max(v => v.Id) + 1;
+                    }
+                    
                     RedrawGraph();
                     ViewModel.Status =
                         $"Graph loaded from text: {ViewModel.Vertices.Count} vertices, {ViewModel.Edges.Count} edges.";

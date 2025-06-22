@@ -12,9 +12,7 @@ namespace GraphPathfinder.Views
     public partial class MainWindow : Window
     {
         private const int MaxVertices = 99;
-        private const int MaxWeight = 99999;
-        private const int MinWeight = -99999;
-        private const int MaxWeightDigits = 5;
+        private const int MaxWeightDigits = 5;  
         private const double VertexRadius = 22;
 
         private readonly SortedSet<int> _freeVertexIds = new();
@@ -443,8 +441,8 @@ namespace GraphPathfinder.Views
                 
                 if (int.TryParse(nextStr, out int result))
                 {
-                    if (result > 99999) result = 99999;
-                    else if (result < -99999) result = -99999;
+                    if (result > Edge.MaxWeight) result = (int)Edge.MaxWeight;
+                    else if (result < Edge.MinWeight) result = (int)Edge.MinWeight;
                     _selectedEdge.Weight = result;
                     RedrawGraph();
                 }
@@ -478,8 +476,8 @@ namespace GraphPathfinder.Views
                     
                     if (int.TryParse(nextStr, out int result))
                     {
-                        if (result > MaxWeight) result = MaxWeight;
-                        else if (result < MinWeight) result = MinWeight;
+                        if (result > Edge.MaxWeight) result = Edge.MaxWeight;
+                        else if (result < Edge.MinWeight) result = Edge.MinWeight;
                         _selectedEdge.Weight = result;
                         RedrawGraph();
                     }
@@ -523,8 +521,8 @@ namespace GraphPathfinder.Views
                     
                     if (int.TryParse(nextStr, out int result))
                     {
-                        if (result > MaxWeight) result = MaxWeight;
-                        else if (result < MinWeight) result = MinWeight;
+                        if (result > Edge.MaxWeight) result = Edge.MaxWeight;
+                        else if (result < Edge.MinWeight) result = Edge.MinWeight;
                         _selectedEdge.Weight = result;
                         RedrawGraph();
                     }

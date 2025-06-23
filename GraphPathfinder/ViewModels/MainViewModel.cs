@@ -154,16 +154,34 @@ namespace GraphPathfinder.ViewModels
 
         private void SyncCollectionsWithGraph()
         {
+            foreach (var edge in Edges)
+            {
+                edge.PropertyChanged -= Edge_PropertyChanged;
+            }
+
             Vertices.Clear();
             foreach (var v in _graphManager.Vertices)
                 Vertices.Add(v);
 
             Edges.Clear();
             foreach (var e in _graphManager.Edges)
+            {
+                e.PropertyChanged += Edge_PropertyChanged;
                 Edges.Add(e);
+            }
 
             OnPropertyChanged(nameof(Vertices));
             OnPropertyChanged(nameof(Edges));
+            
+            CheckForNegativeWeights();
+        }
+        
+        private void Edge_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Edge.Weight))
+            {
+                CheckForNegativeWeights();
+            }
         }
 
         private void CheckForNegativeWeights()
@@ -174,7 +192,18 @@ namespace GraphPathfinder.ViewModels
                 return;
             }
 
-            HasNegativeWeights = Edges.Any(e => e.Weight < 0);
+            bool hasNegative = Edges.Any(e => e.Weight < 0);
+            if (_hasNegativeWeights != hasNegative)
+            {
+                _hasNegativeWeights = hasNegative;
+                OnPropertyChanged(nameof(HasNegativeWeights));
+                OnPropertyChanged(nameof(AvailableAlgorithms));
+
+                if (hasNegative && SelectedAlgorithm != "Bellman-Ford")
+                {
+                    SelectedAlgorithm = "Bellman-Ford";
+                }
+            }
         }
 
         private void Solve()

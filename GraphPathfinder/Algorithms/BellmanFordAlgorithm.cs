@@ -25,7 +25,7 @@ namespace GraphPathfinder.Algorithms
                 {
                     if (e.Weight == null) continue;
 
-                    if (e.IsDirected || isDirectedGraph)
+                    if (e.IsDirected)
                     {
                         if (dist[e.Source] != long.MaxValue && dist[e.Source] + e.Weight.Value < dist[e.Target])
                         {
@@ -62,7 +62,7 @@ namespace GraphPathfinder.Algorithms
             {
                 if (e.Weight == null) continue;
 
-                if (e.IsDirected || isDirectedGraph)
+                if (e.IsDirected)
                 {
                     if (dist[e.Source] != long.MaxValue && dist[e.Source] + e.Weight.Value < dist[e.Target])
                     {
@@ -82,16 +82,17 @@ namespace GraphPathfinder.Algorithms
             }
 
             var path = new List<Vertex>();
+            var visitedInPath = new HashSet<Vertex>();
             if (!hasNegativeCycle && prev.ContainsKey(end))
             {
                 var current = end;
-                var visitedInPath = new HashSet<Vertex>();
                 while (current != null && !visitedInPath.Contains(current) && prev.ContainsKey(current))
                 {
                     path.Insert(0, current);
                     visitedInPath.Add(current);
                     current = prev[current];
                 }
+                verticesVisited = visitedInPath.Count + 1;
 
                 if (current != null && visitedInPath.Contains(current))
                 {

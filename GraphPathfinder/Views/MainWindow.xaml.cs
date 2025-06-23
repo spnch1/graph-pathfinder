@@ -67,10 +67,10 @@ namespace GraphPathfinder.Views
                     _nextVertexId = 1;
                     _selectedEdge = null;
 
-                    var vertexDict = new Dictionary<int, Vertex>();
-                    var seenVertexIds = new HashSet<int>();
-                    var seenEdges = new HashSet<string>();
-                    bool inVertices = false, inEdges = false, hasVertices = false, hasEdges = false;
+                    var vertexDict = new Dictionary<string, Vertex>();
+                    var existingEdges = new HashSet<string>();
+                    bool hasVertices = false;
+                    bool inVertices = false, inEdges = false;
                     var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
                     bool anyExplicitWeight = lines.Any(l => l.Contains("[w="));
                     foreach (var rawLine in lines)
@@ -99,16 +99,10 @@ namespace GraphPathfinder.Views
                             var parts = line.Split(':');
                             if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out int id))
                             {
-                                int expectedId = seenVertexIds.Count + 1;
+                                int expectedId = hasVertices ? vertexDict.Count + 1 : 1;
                                 if (id != expectedId)
                                 {
                                     warnings.Add($"Vertex IDs must be sequential starting from 1. Expected ID: {expectedId}, got: {id}");
-                                    continue;
-                                }
-
-                                if (!seenVertexIds.Add(id))
-                                {
-                                    warnings.Add($"Duplicate vertex ID: {id}");
                                     continue;
                                 }
 
@@ -119,9 +113,17 @@ namespace GraphPathfinder.Views
                                     double.TryParse(coords[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture,
                                         out double y))
                                 {
+                                    if (x < 0 || y < 0)
+                                    {
+                                        warnings.Add($"Vertex {id} has negative coordinates: ({x},{y}). Coordinates must be non-negative.");
+                                        continue;
+                                    }
                                     var v = new Vertex { Id = id, X = x, Y = y };
-                                    ViewModel.AddVertex(v);
-                                    vertexDict[id] = v;
+                                    if (!vertexDict.ContainsKey(id.ToString()))
+                                    {
+                                        ViewModel.AddVertex(v);
+                                        vertexDict[id.ToString()] = v;
+                                    }
                                 }
                                 else
                                 {
@@ -135,7 +137,6 @@ namespace GraphPathfinder.Views
                         }
                         else if (inEdges)
                         {
-                            hasEdges = true;
                             var edgePart = line.Split('[')[0].Trim();
                             int? weight = null;
                             bool hasExplicitWeight = false;
@@ -170,20 +171,44 @@ namespace GraphPathfinder.Views
                             if (edgeVertices.Length == 2 && int.TryParse(edgeVertices[0].Trim(), out int fromId) &&
                                 int.TryParse(edgeVertices[1].Trim(), out int toId))
                             {
-                                string edgeKey = $"{fromId}-{(isDirected ? ">" : "-")}-{toId}";
-                                if (!seenEdges.Add(edgeKey))
+                                if (!vertexDict.TryGetValue(fromId.ToString(), out var fromVertex))
+                                {
+                                    warnings.Add($"Vertex {fromId} not found for edge '{line}'");
+                                    continue;
+                                }
+
+                                if (!vertexDict.TryGetValue(toId.ToString(), out var toVertex))
+                                {
+                                    warnings.Add($"Vertex {toId} not found for edge '{line}'");
+                                    continue;
+                                }
+
+                                string edgeKey;
+                                if (isDirected)
+                                {
+                                    string minId = string.CompareOrdinal(fromId.ToString(), toId.ToString()) < 0 
+                                        ? fromId.ToString() 
+                                        : toId.ToString();
+                                    string maxId = string.CompareOrdinal(fromId.ToString(), toId.ToString()) < 0 
+                                        ? toId.ToString() 
+                                        : fromId.ToString();
+                                    edgeKey = $"{minId}<->{maxId}";
+                                }
+                                else
+                                {
+                                    edgeKey = string.CompareOrdinal(fromId.ToString(), toId.ToString()) < 0 
+                                        ? $"{fromId}--{toId}" 
+                                        : $"{toId}--{fromId}";
+                                }
+
+                                if (existingEdges.Contains(edgeKey))
                                 {
                                     warnings.Add($"Duplicate edge: {line}");
                                     continue;
                                 }
 
-                                if (!vertexDict.ContainsKey(fromId) || !vertexDict.TryGetValue(toId, out var value))
-                                {
-                                    warnings.Add($"Edge refers to missing vertex: '{line}'");
-                                    continue;
-                                }
-
-                                ViewModel.AddEdge(vertexDict[fromId], value, isDirected, weight);
+                                existingEdges.Add(edgeKey);
+                                ViewModel.AddEdge(fromVertex, toVertex, isDirected, weight);
                             }
                             else
                             {
@@ -192,10 +217,16 @@ namespace GraphPathfinder.Views
                         }
                     }
 
-                    if (!hasVertices)
-                        warnings.Add("No vertices section or no vertices defined.");
-                    if (!hasEdges)
-                        warnings.Add("No edges section or no edges defined.");
+                    if (warnings.Any())
+                    {
+                        ViewModel.ClearGraph();
+                        vertexDict.Clear();
+                        MessageBox.Show("Graph not loaded due to the following issues:\n" + 
+                                      string.Join("\n", warnings),
+                            "Graph Input Errors", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
                     ViewModel.IsDirected = text.Contains("->");
                     ViewModel.IsWeighted = text.Contains("[w=");
                     
@@ -205,13 +236,7 @@ namespace GraphPathfinder.Views
                     }
                     
                     RedrawGraph();
-                    ViewModel.Status =
-                        $"Graph loaded from text: {ViewModel.Vertices.Count} vertices, {ViewModel.Edges.Count} edges.";
-                    if (warnings.Count > 0)
-                    {
-                        MessageBox.Show(string.Join("\n", warnings),
-                            "Graph Input Warnings", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
+                    ViewModel.Status = $"Graph loaded: {ViewModel.Vertices.Count} vertices, {ViewModel.Edges.Count} edges.";
                 }
                 catch (Exception ex)
                 {

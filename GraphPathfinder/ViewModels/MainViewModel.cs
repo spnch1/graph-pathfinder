@@ -228,12 +228,18 @@ namespace GraphPathfinder.ViewModels
         {
             _lastAlgorithmResult = AStarAlgorithm.FindPath(
                 StartVertex!, EndVertex!, Vertices, Edges,
-                (a, b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2)),
+                (a, b) => 0,
                 IsDirected);
         }
 
         public void AddVertex(Vertex v)
         {
+            if (v.X < 0 || v.Y < 0)
+            {
+                Status = "Error: Vertex coordinates cannot be negative.";
+                return;
+            }
+
             if (_graphManager.AddVertex(v))
                 Status = $"Vertex {v.Id} added.";
         }

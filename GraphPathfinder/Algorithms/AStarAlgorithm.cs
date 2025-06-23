@@ -35,15 +35,15 @@ namespace GraphPathfinder.Algorithms
                 if (current == end)
                 {
                     var path = new List<Vertex>();
-                    var vAStar = end;
-                    while (cameFrom.ContainsKey(vAStar))
+                    var pathVertice = end;
+                    while (pathVertice != null)
                     {
-                        path.Insert(0, vAStar);
-                        var next = cameFrom[vAStar];
-                        if (next == null) break;
-                        vAStar = next;
+                        path.Insert(0, pathVertice);
+                        if (!cameFrom.TryGetValue(pathVertice, out pathVertice) || pathVertice == null)
+                            break;
                     }
-                    if (path.Count > 0 && path[0] != start)
+
+                    if (path.Count == 0 || path[0] != start)
                         path.Insert(0, start);
 
                     stopwatch.Stop();

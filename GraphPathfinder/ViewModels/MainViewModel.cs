@@ -258,6 +258,8 @@ namespace GraphPathfinder.ViewModels
             _lastAlgorithmResult = AStarAlgorithm.FindPath(
                 StartVertex!, EndVertex!, Vertices, Edges,
                 (a, b) => 0,
+                // (a, b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y)), // Euclidean distance
+                // (a, b) => Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y), // Manhattan distance
                 IsDirected);
         }
 
